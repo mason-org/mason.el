@@ -65,6 +65,16 @@ Will be matched case-insensitively."
   :type '(repeat regexp)
   :group 'mason)
 
+(defcustom mason-command-overrides '()
+  "Alist of command and its path to be used in `mason--process'.
+This in turn will be used instead of resolving from `exec-path'.
+
+Example:
+    ;; Use python from ~/.local/bin instead of /usr/bin.
+    (setq mason-command-overrides `''((\"python\" . \"~/.local/bin/python\")))"
+  :type '(alist :key-type string :value-type string)
+  :group 'mason)
+
 
 ;; Keybinds
 
@@ -191,9 +201,11 @@ CWD is the working directory.
 THEN is a function to call after process succeed.
 THEN needs to accept a parameter, indicating if the process succeeded."
   (declare (indent defun))
-  (let ((prog (car cmd))
-        (msg (mapconcat #'mason--quote cmd " "))
-        (process-environment process-environment))
+  (let* ((prog (car cmd))
+         (prog (or (cdr (assoc-string prog mason-command-overrides)) prog))
+         (cmd (cons prog (cdr cmd)))
+         (msg (mapconcat #'mason--quote cmd " "))
+         (process-environment process-environment))
     (when env
       (dolist (e (nreverse env))
         (let ((k (car e)) (v (cdr e)))
