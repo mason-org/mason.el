@@ -932,7 +932,6 @@ Expand BUILD[env] with ID."
 (mason--source! openvsx (:namespace must)
   (let* ((download (gethash "download" source))
          (_ (unless download (error "Missing `download' key")))
-         (_ (mason--expect-hash-key download "file"))
          (file (gethash "file" download)))
     (unless file (error "Missing file to download"))
     (setq file (mason--expand file id))
