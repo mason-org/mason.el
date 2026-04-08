@@ -4,7 +4,7 @@
 
 ;; Author: Dimas Firmansyah <deirn@bai.lol>
 ;; Version: 1.0.0
-;; Homepage: https://github.com/deirn/mason.el
+;; Homepage: https://github.com/mason-org/mason.el
 ;; Package-Requires: ((emacs "30.1") (s "1.13.0"))
 ;; Keywords: tools lsp installer
 ;; This file is not part of GNU Emacs.
