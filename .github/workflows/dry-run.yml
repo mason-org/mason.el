@@ -12,7 +12,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: purcell/setup-emacs@b3884972d55f850449e43be74de08f9a97aa3f34
       with:
         version: 30.1
