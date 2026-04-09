@@ -385,6 +385,21 @@ https://github.com/package-url/purl-spec"
       (puthash "qualifiers" qualifiers purl))
     purl))
 
+(defun mason--format-version (spec)
+  "Get formatted version string from SPEC."
+  (let* ((name (gethash "name" spec))
+         (source (gethash "source" spec))
+         (source-id (gethash "id" source))
+         (purl (mason--parse-purl source-id))
+         (version (gethash "version" purl))
+         (version (if (not (string-match (rx bol (literal name) (any "/@-") (group (+ anychar)) eol) version)) version
+                    (match-string 1 version)))
+         (version (replace-regexp-in-string "^[vV]" "" version))
+         (version (replace-regexp-in-string (rx bol (or "untagged-" "0.0.0-")) "" version))
+         (version (if (not (string-match-p "^[0-9a-f]\\{20,40\\}$" version)) version
+                    (concat (substring version 0 9) "…"))))
+    version))
+
 (defconst mason--bin-regexp
   ;; [type:]path/to/bin
   (concat "^"

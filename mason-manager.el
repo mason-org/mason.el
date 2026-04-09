@@ -314,16 +314,10 @@ T-INSTALLED T-UPDATABLE T-UNINSTALLED T-PENDING T-DEPRECATED."
                     (installed (gethash pkg mason--installed))
                     (updatable (gethash pkg mason--updatable))
                     (pending (gethash pkg mason--pending))
-                    (source (gethash "source" spec))
-                    (source-id (gethash "id" source))
-                    (purl (mason--parse-purl source-id))
-                    (version (gethash "version" purl))
-                    (version (if (not (string-match (rx bol (literal name) (any "/@-") (group (+ anychar)) eol) version)) version
-                               (match-string 1 version)))
-                    (version (replace-regexp-in-string "^[vV]" "" version))
-                    (version (replace-regexp-in-string (rx bol (or "untagged-" "0.0.0-")) "" version))
-                    (version (if (not (string-match-p "^[0-9a-f]\\{20,40\\}$" version)) version
-                               (concat (substring version 0 9) "…"))))
+                    (version (mason--format-version spec)))
+               (when updatable
+                 (setq version (concat (propertize (concat (mason--format-version updatable) " → ") 'face 'shadow)
+                                       (propertize version 'face 'mason-manager-updatable))))
                (setq name-width (max name-width (length name))
                      version-width (max version-width (length version)))
                (let ((show (and (or (eq 'show t-installed) (or (not installed) updatable))
