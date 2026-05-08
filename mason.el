@@ -1568,6 +1568,20 @@ indicating the package success to update."
                                 (setq p (gethash "name" p))
                                 (mason-uninstall p nil (funcall install p)))))))))
 
+;;;###autoload
+(defun mason-update-all (&optional callback)
+  "Update all Mason packages.
+
+CALLBACK is a function that will be called with one argument,
+indicating a package success to update."
+  (interactive)
+  (if (= 0 (hash-table-count mason--updatable))
+      (mason--info "No updates available")
+    (maphash
+     (lambda (p _)
+       (mason-update p nil callback)
+       mason--updatable))))
+
 (defun mason--install-0 (spec force interactive uninstall callback)
   "Implementation of `mason-install' and `mason-uninstall'.
 Args: SPEC FORCE INTERACTIVE UNINSTALL CALLBACK."
