@@ -1578,8 +1578,8 @@ indicating a package success to update."
       (mason--info "No updates available")
     (maphash
      (lambda (p _)
-       (mason-update p nil callback)
-       mason--updatable))))
+       (mason-update p nil callback))
+       mason--updatable)))
 
 (defun mason--install-0 (spec force interactive uninstall callback)
   "Implementation of `mason-install' and `mason-uninstall'.
