@@ -1571,7 +1571,6 @@ indicating the package success to update."
 ;;;###autoload
 (defun mason-update-all (&optional callback)
   "Update all Mason packages.
-
 CALLBACK is a function that will be called with one argument,
 indicating a package success to update."
   (interactive)
