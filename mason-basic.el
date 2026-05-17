@@ -179,11 +179,26 @@ See `call-process' INFILE and DESTINATION for IN and OUT."
       (unless success (error "Failed `%s'" msg))
       (cons status success))))
 
-(defun mason--download (url newname &optional ok-if-already-exists)
+(defun mason--assert-file-checksum (file algo hash)
+  "Check FILE checksum if it equals to HASH using ALGO.
+See `secure-hash' for more info."
+  (with-temp-buffer
+    (insert-file-contents-literally file)
+    (let ((checksum (secure-hash algo (current-buffer))))
+      (if (string= hash checksum)
+          (mason--info "Checksum of `%s' valid" file)
+        (error "Checksum of `%s' failed, expected `%s' but got `%s'" file hash checksum)))))
+
+(defun mason--download (url newname &optional ok-if-already-exists checksum-algo checksum-hash)
   "Copy URL to NEWNAME.
-OK-IF-ALREADY-EXISTS is the same in `url-copy-file'."
+OK-IF-ALREADY-EXISTS is the same in `url-copy-file'.
+If not nil, check the downloaded file with CHECKSUM-HASH and CHECKSUM-ALGO."
   (mason--info "Downloading %s to %s" url newname)
-  (or mason-dry-run (url-copy-file url newname ok-if-already-exists)))
+  (if mason-dry-run t
+    (let ((ok (url-copy-file url newname ok-if-already-exists)))
+      (when (and ok checksum-hash checksum-algo)
+        (mason--assert-file-checksum newname checksum-algo checksum-hash))
+      ok)))
 
 
 ;; File Utilities
@@ -360,27 +375,40 @@ otherwise, return the original file name."
 (mason--extract-stdio! zst   "zst"         ""     "unzstd"     `("-c"  ,file))
 (mason--extract-stdio! tzst  "tzst"        ".tar" "unzstd"     `("-c"  ,file))
 
-(defun mason--download-maybe-extract (url dest)
+(defun mason--download-maybe-extract (url dest &optional checksum-algo checksums)
   "Download file from URL.
 If it is a supported archive, extract into directory DEST.
 If not, simply save it as DEST, or inside DEST if it is a directory.
-See `mason--extract-strategies'."
+CHECKSUM-ALGO is the algorithm to use to check for file hashes.
+CHECKSUMS is alist of filename and checksum hashes."
   (let* ((filename (file-name-nondirectory (url-filename (url-generic-parse-url url))))
          (tmp-dir (make-temp-file "mason-download-" 'dir))
-         (tmp-file (mason--expand-child-file-name filename tmp-dir)))
+         (tmp-file (mason--expand-child-file-name filename tmp-dir))
+         (is-dest-directory (or (directory-name-p dest) (file-directory-p dest))))
     (unwind-protect
-        (let ((status (mason--download url tmp-file t)))
-          (unless status
-            (error "Download failed: %s" url))
-          (if (mason--archive-name filename)
-              (mason--try-extract tmp-file dest)
+        (let* ((download-checksum (alist-get filename checksums nil nil #'equal))
+               (status (mason--download url tmp-file t checksum-algo download-checksum)))
+          (unless status (error "Download failed: %s" url))
+          (cond
+           ((mason--archive-name filename)
+            (mason--try-extract tmp-file dest)
             (unless mason-dry-run
-              (when (or (directory-name-p dest) (file-directory-p dest))
+              (if is-dest-directory
+                  (dolist (dest-file (directory-files dest 'full directory-files-no-dot-files-regexp))
+                    (when-let* ((dest-filename (file-name-nondirectory dest-file))
+                                (checksum (alist-get dest-filename checksums nil nil #'equal)))
+                      (mason--assert-file-checksum dest-file checksum-algo checksum)))
+                (when-let* ((dest-filename (file-name-nondirectory dest))
+                            (checksum (alist-get dest-filename checksums nil nil #'equal)))
+                  (mason--assert-file-checksum dest checksum-algo checksum)))))
+           (t
+            (unless mason-dry-run
+              (when is-dest-directory
                 (progn (make-directory dest t)
                        (setq dest (mason--expand-child-file-name filename dest))))
               (make-directory (file-name-parent-directory dest) t)
               (copy-file tmp-file dest))
-            (mason--info "Copied `%s' to `%s'" tmp-file dest)))
+            (mason--info "Copied `%s' to `%s'" tmp-file dest))))
       (when (file-directory-p tmp-dir)
         (ignore-errors (mason--delete-directory tmp-dir t t))))))
 

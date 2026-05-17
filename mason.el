@@ -48,9 +48,22 @@ This value is checked on every `mason-ensure' call."
   :type 'integer :group 'mason)
 
 (defcustom mason-registries
-  '(("mason" . "https://github.com/mason-org/mason-registry/releases/latest/download/registry.json.zip"))
-  "Alist of registry name and registry json archive link."
-  :type '(alist :key-type string :value-type string)
+  '(("mason" .
+     (:url           "https://github.com/mason-org/mason-registry/releases/latest/download/registry.json.zip"
+      :checksum-url  "https://github.com/mason-org/mason-registry/releases/latest/download/checksums.txt"
+      :checksum-algo sha256)))
+  "Alist of registry name and registry configuration.
+Configuration can be either a simple url string or a plist with the structure
+    (:url           \"https://example.com/registry.json.zip\"
+     :checksum-url  \"https://example.com/checksums.txt\"
+     :checksum-algo sha256)
+
+If it is a plist, the zip and resulting json will be checked using
+`secure-hash' with the :CHECKSUM-ALGO as the algorithm.
+
+The checksum file in :CHECKSUM-URL is expected to have the content of the
+output of the hash commads of GNU coreutils (sha1sum, md5sum, etc.)"
+  :type '(alist :key-type string :value-type (choice string plist))
   :group 'mason)
 
 (defcustom mason-show-deprecated nil
@@ -1299,10 +1312,30 @@ WIN-EXT is the extension to add when on windows."
                 (mason--delete-directory reg-dir t))
               (dolist (e regs)
                 (let* ((name (car e))
-                       (url (cdr e))
-                       (dest (mason--expand-child-file-name name reg-dir)))
+                       (config (cdr e))
+                       (is-config-plist (not (stringp config)))
+                       (url (if is-config-plist (plist-get config :url) config))
+                       (dest (mason--expand-child-file-name name reg-dir))
+                       checksum-url checksum-algo checksums)
+                  (when is-config-plist
+                    (setq checksum-url (plist-get config :checksum-url)
+                          checksum-algo (plist-get config :checksum-algo))
+                    (unless (and checksum-url checksum-algo)
+                      (error "Registry config plist %s must have :checksum-url and :checksum-algo" name)))
                   (make-directory dest t)
-                  (mason--download-maybe-extract url dest)
+                  (when is-config-plist
+                    (let ((checksum-file (mason--expand-child-file-name "checksum.txt" dest)))
+                      (mason--download checksum-url checksum-file)
+                      (with-temp-buffer
+                        (insert-file-contents checksum-file)
+                        (let ((lines (split-string (buffer-string) "\r?\n" t)))
+                          (dolist (line lines)
+                            (if (string-match "^\\([a-f0-9]+\\)[ \t]+\\(.+\\)$" line)
+                                (push (cons (file-name-nondirectory (match-string 2 line))
+                                            (match-string 1 line))
+                                      checksums)
+                              (error "Checksum file for %s not in the correct format" name)))))))
+                  (mason--download-maybe-extract url dest checksum-algo checksums)
                   (dolist (file (directory-files dest 'full "\\.json\\'"))
                     (mason--info "Reading registry %s" file)
                     (with-temp-buffer
@@ -1579,7 +1612,7 @@ indicating a package success to update."
     (maphash
      (lambda (p _)
        (mason-update p nil callback))
-       mason--updatable)))
+     mason--updatable)))
 
 (defun mason--install-0 (spec force interactive uninstall callback)
   "Implementation of `mason-install' and `mason-uninstall'.
